@@ -2,12 +2,23 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors
+import CORSMiddleware
 from pathlib import Path
 import os
+
 
 # FastAPI app
 app = FastAPI()
 
+# ===== CORS Middleware =====
+# Allow Flutter Web to make requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[""],       # "" means all domains
+    allow_methods=["*"],       # GET, POST, etc.
+    allow_headers=["*"]
+)
 # Chunks folder path
 CHUNK_DIR = Path("chunks")
 CHUNK_DIR.mkdir(exist_ok=True)
