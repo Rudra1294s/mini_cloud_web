@@ -17,8 +17,8 @@ app.add_middleware(
 )
 
 # Folder for uploaded files
-CHUNK_DIR = Path("chunks")
-CHUNK_DIR.mkdir(exist_ok=True)
+UPLOAD_FOLDER="uploaded_files"
+os.makedirs(UPLOAD_FOLDER,exist_ok=True)
 
 # Upload file (POST)
 @app.post("/upload_chunk/")
