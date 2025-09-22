@@ -40,5 +40,5 @@ async def download_chunk(filename: str):
         )
     return {"status": "not_found"}
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=5000, reload=True)
