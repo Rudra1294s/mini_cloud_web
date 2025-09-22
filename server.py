@@ -2,8 +2,7 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors
-import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import os
 
