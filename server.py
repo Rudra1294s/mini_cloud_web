@@ -22,11 +22,15 @@ CHUNK_DIR.mkdir(exist_ok=True)
 
 # Upload file (POST)
 @app.post("/upload_chunk/")
-async def upload_chunk(file: UploadFile = File(...)):
-    file_path = CHUNK_DIR / file.filename
-    with open(file_path, "wb") as f:
-        f.write(await file.read())
-    return {"status": "uploaded", "filename": file.filename}
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        file_path = os.path.join("uploaded_files", file.filename)
+        os.makedirs("uploaded_files", exist_ok=True)
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": f"failed: {e}"}
 
 # Download file (GET)
 @app.get("/download_chunk/{filename}")
