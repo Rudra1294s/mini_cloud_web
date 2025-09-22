@@ -40,5 +40,17 @@ async def download_file(filename: str):
         return FileResponse(file_path, media_type='application/octet-stream', filename=filename)
     return {"status": "file not found"}
 
+#recent files
+@app.get("/recent_files/")
+async def recent_files():
+    try:
+        # Agar koi condition check karni ho, yahan likho
+        # Example: ignore hidden files
+        all_files = os.listdir(UPLOAD_FOLDER)
+        files = [f for f in all_files if not f.startswith('.')]
+        return JSONResponse(content={"files": files}, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"files": [], "error": str(e)}, status_code=500)
+
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=5000, reload=True)
