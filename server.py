@@ -34,15 +34,11 @@ async def upload_file(file: UploadFile = File(...)):
 
 # Download file (GET)
 @app.get("/download_chunk/{filename}")
-async def download_chunk(filename: str):
-    file_path = CHUNK_DIR / filename
-    if file_path.exists():
-        return FileResponse(
-            path=file_path,
-            media_type="application/octet-stream",
-            filename=filename
-        )
-    return {"status": "not_found"}
+async def download_file(filename: str):
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type='application/octet-stream', filename=filename)
+    return {"status": "file not found"}
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=5000, reload=True)
