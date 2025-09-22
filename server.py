@@ -1,6 +1,6 @@
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import os
