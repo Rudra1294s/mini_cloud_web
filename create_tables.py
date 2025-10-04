@@ -1,10 +1,21 @@
-from database import engine, Base
-import models
-from sqlalchemy import text
+# create_tables.py
+from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
+from models import Base  # ensure models.py same folder me ho aur Base defined ho
 
-# Ensure schema exists and create tables
-with engine.begin() as conn:
-    conn.execute(text("CREATE SCHEMA IF NOT EXISTS cloud_schema"))
+USERNAME = "postgres"
+PASSWORD = "kali1294$"    # tumne abhi set kiya hua password
+DB_NAME = "mini_cloud_db" # agar DB name alag hai to yahan change kar dena
+HOST = "localhost"
+PORT = "5432"
 
-Base.metadata.create_all(bind=engine)
-print("✅ Schema and tables created/verified in mini_cloud_db")
+DATABASE_URL = f"postgresql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DB_NAME}"
+
+engine = create_engine(DATABASE_URL)
+
+try:
+    Base.metadata.create_all(engine)
+    print("✅ Tables created successfully!")
+except OperationalError as e:
+    print("❌ Error connecting to database:")
+    print(e)
