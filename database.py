@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 # PostgreSQL connection
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:your_password@localhost:5432/mini_cloud_db"
+    "postgresql://postgres:kali1294$@localhost:5432/mini_cloud_db"
 )
 
 # Schema name
