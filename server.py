@@ -4,22 +4,25 @@ Developed by Rudra Pratap Singh
 Powered by FastAPI + PostgreSQL + Fernet Encryption
 """
 
+# ================================================================
+# 1️⃣ IMPORTS
+# ================================================================
 import os
+import psycopg2
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-import psycopg2
 from cryptography.fernet import Fernet
+import uvicorn
 
 # ================================================================
-# 🔧 CONFIGURATION (Rudra’s Cloud Setup)
+# 2️⃣ CONFIGURATION
 # ================================================================
-DB_NAME = "cloud_db"
-DB_USER = "postgres"
-DB_PASSWORD = "kali1294$"
-DB_HOST = "localhost"
-DB_PORT = "5432"
+# Database URL from environment variable (Render)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise Exception("❌ DATABASE_URL environment variable is not set!")
 
 # Frontend URL (for CORS)
 FRONTEND_URL = "https://rudravcloud.onrender.com"
@@ -32,8 +35,11 @@ UPLOAD_DIR = "./chunks"
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
+# File chunk size
+CHUNK_SIZE = 1024 * 1024  # 1 MB
+
 # ================================================================
-# 🔐 ENCRYPTION SETUP
+# 3️⃣ ENCRYPTION SETUP
 # ================================================================
 if not os.path.exists(KEY_FILE):
     with open(KEY_FILE, "wb") as keyfile:
@@ -45,23 +51,17 @@ with open(KEY_FILE, "rb") as keyfile:
 cipher = Fernet(key)
 
 # ================================================================
-# 🗄️ DATABASE CONNECTION
+# 4️⃣ DATABASE CONNECTION
 # ================================================================
 try:
-    conn = psycopg2.connect(
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT
-    )
+    conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
     print("✅ Database connected successfully!")
 except Exception as e:
     raise Exception(f"❌ Database connection failed: {e}")
 
 # ================================================================
-# 🚀 FASTAPI INITIALIZATION
+# 5️⃣ FASTAPI INITIALIZATION
 # ================================================================
 app = FastAPI(title="Rudra Cloud API", version="1.0")
 templates = Jinja2Templates(directory="templates")
@@ -75,11 +75,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CHUNK_SIZE = 1024 * 1024  # 1 MB
+# ================================================================
+# 6️⃣ ROUTES
+# ================================================================
 
-# ================================================================
-# 🌐 ROUTES
-# ================================================================
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     """Serves homepage (index.html)"""
@@ -91,7 +90,7 @@ def health():
     """Health check endpoint"""
     return {
         "status": "running",
-        "database": DB_NAME,
+        "database_url": DATABASE_URL,
         "frontend": FRONTEND_URL
     }
 
@@ -152,13 +151,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
 
         os.remove(temp_path)
 
-        return JSONResponse(
-            content={
-                "status": "success",
-                "file_id": file_id,
-                "chunks": chunks_count
-            }
-        )
+        return JSONResponse(content={"status": "success", "file_id": file_id, "chunks": chunks_count})
 
     except Exception as e:
         conn.rollback()
@@ -193,11 +186,7 @@ def download_file(file_id: int):
                     decrypted_chunk = cipher.decrypt(encrypted_chunk)
                     merged_file.write(decrypted_chunk)
 
-        response = FileResponse(
-            path=merged_path,
-            filename=filename,
-            media_type='application/octet-stream'
-        )
+        response = FileResponse(path=merged_path, filename=filename, media_type='application/octet-stream')
         return response
 
     except Exception as e:
@@ -206,3 +195,10 @@ def download_file(file_id: int):
     finally:
         if os.path.exists(merged_path):
             os.remove(merged_path)
+
+# ================================================================
+# 7️⃣ RUN APP
+# ================================================================
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
