@@ -1,21 +1,10 @@
 # create_tables.py
-from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
-from models import Base  # ensure models.py same folder me ho aur Base defined ho
-
-USERNAME = "postgres"
-PASSWORD = "kali1294$"    # tumne abhi set kiya hua password
-DB_NAME = "mini_cloud_db" # agar DB name alag hai to yahan change kar dena
-HOST = "localhost"
-PORT = "5432"
-
-DATABASE_URL = f"postgresql://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DB_NAME}"
-
-engine = create_engine(DATABASE_URL)
+from database import engine, Base  # ye tumhara updated database.py use karega
 
 try:
-    Base.metadata.create_all(engine)
-    print("✅ Tables created successfully!")
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tables created successfully on Render DB!")
 except OperationalError as e:
-    print("❌ Error connecting to database:")
+    print("❌ Error connecting to Render DB:")
     print(e)
