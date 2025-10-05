@@ -48,12 +48,12 @@ cipher = Fernet(key)
 # 4️⃣ DATABASE CONNECTION
 # ================================================================
 try:
-    conn = psycopg2.connect(DATABASE_URL, autocommit=True)
+    conn = psycopg2.connect(DATABASE_URL)  # <-- yahan sirf connection string do
+    conn.autocommit = True                  # <-- autocommit yahan set karo
     cursor = conn.cursor()
     print("✅ Database connected successfully!")
 except Exception as e:
     raise Exception(f"❌ Database connection failed: {e}")
-
 # ================================================================
 # 5️⃣ FASTAPI INITIALIZATION
 # ================================================================
