@@ -48,7 +48,7 @@ cipher = Fernet(key)
 # 4️⃣ DATABASE CONNECTION
 # ================================================================
 try:
-    conn = psycopg.connect(DATABASE_URL, autocommit=True)
+    conn = psycopg2.connect(DATABASE_URL, autocommit=True)
     cursor = conn.cursor()
     print("✅ Database connected successfully!")
 except Exception as e:
