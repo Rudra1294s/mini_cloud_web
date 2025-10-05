@@ -1,6 +1,6 @@
-# create_tables.py
 from sqlalchemy.exc import OperationalError
-from database import engine, Base  # ye tumhara updated database.py use karega
+from database import engine, Base
+from models import User, FileMetadata, ChunkMetadata  # import new models
 
 try:
     Base.metadata.create_all(bind=engine)
