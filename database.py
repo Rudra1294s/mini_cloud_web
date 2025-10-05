@@ -2,14 +2,14 @@ import os
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# PostgreSQL connection
+# PostgreSQL connection (Render DB credentials)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:kali1294$@localhost:5432/mini_cloud_db"
+    "postgresql://rudrav_cloud:M1pqzgpKCJ7es0eOHwU8fK9zdHxEOHyv@dpg-d3h1rr0gjchc73a50uig-a:5432/mini_cloud_db"
 )
 
-# Schema name
-SCHEMA_NAME = "cloud_schema"
+# Optional: Schema name (Render DB me default public schema hi chalega, ya agar chahiye to cloud_schema)
+SCHEMA_NAME = os.getenv("SCHEMA_NAME", "cloud_schema")
 
 # Engine and Session
 engine = create_engine(DATABASE_URL)
