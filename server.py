@@ -8,7 +8,7 @@ Powered by FastAPI + PostgreSQL + Fernet Encryption
 # 1️⃣ IMPORTS
 # ================================================================
 import os
-import psycopg  # updated from psycopg2
+import psycopg2
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
