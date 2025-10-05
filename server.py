@@ -8,7 +8,7 @@ Powered by FastAPI + PostgreSQL + Fernet Encryption
 # 1️⃣ IMPORTS
 # ================================================================
 import os
-import psycopg2
+import psycopg  # updated from psycopg2
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -19,24 +19,18 @@ import uvicorn
 # ================================================================
 # 2️⃣ CONFIGURATION
 # ================================================================
-# Database URL from environment variable (Render)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise Exception("❌ DATABASE_URL environment variable is not set!")
 
-# Frontend URL (for CORS)
 FRONTEND_URL = "https://rudravcloud.onrender.com"
 
-# Encryption key file (persistent)
 KEY_FILE = "secret.key"
-
-# Upload storage directory
 UPLOAD_DIR = "./chunks"
+CHUNK_SIZE = 1024 * 1024  # 1 MB
+
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
-
-# File chunk size
-CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 # ================================================================
 # 3️⃣ ENCRYPTION SETUP
@@ -54,7 +48,7 @@ cipher = Fernet(key)
 # 4️⃣ DATABASE CONNECTION
 # ================================================================
 try:
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = psycopg.connect(DATABASE_URL, autocommit=True)
     cursor = conn.cursor()
     print("✅ Database connected successfully!")
 except Exception as e:
@@ -66,7 +60,6 @@ except Exception as e:
 app = FastAPI(title="Rudra Cloud API", version="1.0")
 templates = Jinja2Templates(directory="templates")
 
-# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_URL],
@@ -78,22 +71,13 @@ app.add_middleware(
 # ================================================================
 # 6️⃣ ROUTES
 # ================================================================
-
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    """Serves homepage (index.html)"""
     return templates.TemplateResponse("index.html", {"request": request})
-
 
 @app.get("/health")
 def health():
-    """Health check endpoint"""
-    return {
-        "status": "running",
-        "database_url": DATABASE_URL,
-        "frontend": FRONTEND_URL
-    }
-
+    return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
 
 # ------------------------------------------------
 # 📤 File Upload API
@@ -116,9 +100,8 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
             (file.filename, 0, CHUNK_SIZE, uploaded_by)
         )
         file_id = cursor.fetchone()[0]
-        conn.commit()
 
-        # Encrypt + split file into chunks
+        # Encrypt + split into chunks
         chunks_count = 0
         with open(temp_path, "rb") as f:
             index = 0
@@ -129,7 +112,6 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
 
                 encrypted_chunk = cipher.encrypt(chunk)
                 chunk_path = os.path.join(UPLOAD_DIR, f"{file.filename}_chunk_{index}")
-
                 with open(chunk_path, "wb") as cf:
                     cf.write(encrypted_chunk)
 
@@ -147,16 +129,13 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
             "UPDATE file_metadata SET chunks_count=%s WHERE id=%s",
             (chunks_count, file_id)
         )
-        conn.commit()
 
         os.remove(temp_path)
 
         return JSONResponse(content={"status": "success", "file_id": file_id, "chunks": chunks_count})
 
     except Exception as e:
-        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ------------------------------------------------
 # 📥 File Download API
