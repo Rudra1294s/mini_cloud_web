@@ -29,6 +29,7 @@ KEY_FILE = "secret.key"
 UPLOAD_DIR = "./chunks"
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
+# Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================================================================
@@ -80,7 +81,7 @@ def health():
     return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
 
 # ------------------------------------------------
-# 📤 File Upload API
+# 📤 File Upload API (main)
 # ------------------------------------------------
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
@@ -90,7 +91,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
         with open(temp_path, "wb") as f:
             f.write(content)
 
-        # Insert metadata
+        # Insert metadata into file_metadata
         cursor.execute(
             """
             INSERT INTO file_metadata (filename, chunks_count, chunk_size, uploaded_by)
@@ -101,7 +102,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
         )
         file_id = cursor.fetchone()[0]
 
-        # Encrypt + split into chunks
+        # Encrypt and split into chunks
         chunks_count = 0
         with open(temp_path, "rb") as f:
             index = 0
@@ -113,6 +114,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
                 chunk_path = os.path.join(UPLOAD_DIR, f"{file.filename}_chunk_{index}")
                 with open(chunk_path, "wb") as cf:
                     cf.write(encrypted_chunk)
+                # Insert chunk metadata
                 cursor.execute(
                     """
                     INSERT INTO chunk_metadata (file_id, chunk_index, lender_node)
@@ -123,6 +125,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
                 index += 1
                 chunks_count += 1
 
+        # Update chunks count in file_metadata
         cursor.execute(
             "UPDATE file_metadata SET chunks_count=%s WHERE id=%s",
             (chunks_count, file_id)
@@ -133,7 +136,20 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
         return JSONResponse(content={"status": "success", "file_id": file_id, "chunks": chunks_count})
 
     except Exception as e:
+        print("Error in upload_file:", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+# ------------------------------------------------
+# 📤 Alias route for frontend `/upload_chunk/`
+# ------------------------------------------------
+@app.post("/upload_chunk/")
+async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1"):
+    print("Alias route called for:", file.filename)
+    try:
+        return await upload_file(file, uploaded_by)
+    except Exception as e:
+        print("Error in upload_chunk:", e)
+        raise
 
 # ------------------------------------------------
 # 📥 File Download API
@@ -165,18 +181,12 @@ def download_file(file_id: int):
         return FileResponse(path=merged_path, filename=filename, media_type='application/octet-stream')
 
     except Exception as e:
+        print("Error in download_file:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         if merged_path and os.path.exists(merged_path):
             os.remove(merged_path)
-# ------------------------------------------------
-# Alias route for frontend `/upload_chunk/` (no frontend change needed)
-# ------------------------------------------------
-@app.post("/upload_chunk/")
-async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1"):
-    # forward to existing upload_file function
-    return await upload_file(file, uploaded_by)
 
 # ================================================================
 # 7️⃣ RUN APP
