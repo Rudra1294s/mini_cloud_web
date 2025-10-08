@@ -29,8 +29,7 @@ KEY_FILE = "secret.key"
 UPLOAD_DIR = "./chunks"
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================================================================
 # 3️⃣ ENCRYPTION SETUP
@@ -48,12 +47,13 @@ cipher = Fernet(key)
 # 4️⃣ DATABASE CONNECTION
 # ================================================================
 try:
-    conn = psycopg2.connect(DATABASE_URL)  # <-- yahan sirf connection string do
-    conn.autocommit = True                  # <-- autocommit yahan set karo
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
     cursor = conn.cursor()
     print("✅ Database connected successfully!")
 except Exception as e:
     raise Exception(f"❌ Database connection failed: {e}")
+
 # ================================================================
 # 5️⃣ FASTAPI INITIALIZATION
 # ================================================================
@@ -109,12 +109,10 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
                 chunk = f.read(CHUNK_SIZE)
                 if not chunk:
                     break
-
                 encrypted_chunk = cipher.encrypt(chunk)
                 chunk_path = os.path.join(UPLOAD_DIR, f"{file.filename}_chunk_{index}")
                 with open(chunk_path, "wb") as cf:
                     cf.write(encrypted_chunk)
-
                 cursor.execute(
                     """
                     INSERT INTO chunk_metadata (file_id, chunk_index, lender_node)
@@ -142,6 +140,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
 # ------------------------------------------------
 @app.get("/download/{file_id}")
 def download_file(file_id: int):
+    merged_path = None
     try:
         cursor.execute(
             "SELECT filename, chunks_count FROM file_metadata WHERE id=%s",
@@ -159,20 +158,17 @@ def download_file(file_id: int):
                 chunk_path = os.path.join(UPLOAD_DIR, f"{filename}_chunk_{i}")
                 if not os.path.exists(chunk_path):
                     raise HTTPException(status_code=404, detail=f"Chunk {i} missing")
-
                 with open(chunk_path, "rb") as cf:
-                    encrypted_chunk = cf.read()
-                    decrypted_chunk = cipher.decrypt(encrypted_chunk)
+                    decrypted_chunk = cipher.decrypt(cf.read())
                     merged_file.write(decrypted_chunk)
 
-        response = FileResponse(path=merged_path, filename=filename, media_type='application/octet-stream')
-        return response
+        return FileResponse(path=merged_path, filename=filename, media_type='application/octet-stream')
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
-        if os.path.exists(merged_path):
+        if merged_path and os.path.exists(merged_path):
             os.remove(merged_path)
 
 # ================================================================
