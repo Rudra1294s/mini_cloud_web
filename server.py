@@ -170,6 +170,13 @@ def download_file(file_id: int):
     finally:
         if merged_path and os.path.exists(merged_path):
             os.remove(merged_path)
+# ------------------------------------------------
+# Alias route for frontend `/upload_chunk/` (no frontend change needed)
+# ------------------------------------------------
+@app.post("/upload_chunk/")
+async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1"):
+    # forward to existing upload_file function
+    return await upload_file(file, uploaded_by)
 
 # ================================================================
 # 7️⃣ RUN APP
