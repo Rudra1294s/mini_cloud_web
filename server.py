@@ -5,22 +5,24 @@ Powered by FastAPI + PostgreSQL + Fernet Encryption
 """
 
 # ================================================================
-# ⿡ IMPORTS
+# 1️⃣ IMPORTS
 # ================================================================
 import os
 import psycopg2
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from cryptography.fernet import Fernet
 import uvicorn
 from models import Base
 from database import engine
+
+# Ensure models/tables created (SQLAlchemy)
 Base.metadata.create_all(bind=engine)
 
 # ================================================================
-# ⿢ CONFIGURATION
+# 2️⃣ CONFIGURATION
 # ================================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -36,7 +38,7 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================================================================
-# ⿣ ENCRYPTION SETUP
+# 3️⃣ ENCRYPTION SETUP
 # ================================================================
 if not os.path.exists(KEY_FILE):
     with open(KEY_FILE, "wb") as keyfile:
@@ -48,7 +50,7 @@ with open(KEY_FILE, "rb") as keyfile:
 cipher = Fernet(key)
 
 # ================================================================
-# ⿤ DATABASE CONNECTION
+# 4️⃣ DATABASE CONNECTION
 # ================================================================
 try:
     conn = psycopg2.connect(DATABASE_URL)
@@ -59,7 +61,7 @@ except Exception as e:
     raise Exception(f"❌ Database connection failed: {e}")
 
 # ================================================================
-# ⿥ FASTAPI INITIALIZATION
+# 5️⃣ FASTAPI INITIALIZATION
 # ================================================================
 app = FastAPI(title="Rudra Cloud API", version="1.0")
 templates = Jinja2Templates(directory="templates")
@@ -73,7 +75,7 @@ app.add_middleware(
 )
 
 # ================================================================
-# ⿦ ROUTES
+# 6️⃣ ROUTES
 # ================================================================
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
@@ -125,6 +127,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
                 if not chunk:
                     break
                 encrypted_chunk = cipher.encrypt(chunk)
+                # NOTE: your repo uses filename + "chunk" + index (no underscore)
                 chunk_path = os.path.join(UPLOAD_DIR, f"{file.filename}chunk{index}")
                 with open(chunk_path, "wb") as cf:
                     cf.write(encrypted_chunk)
@@ -166,11 +169,10 @@ async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1")
         raise
 
 # ------------------------------------------------
-# 📥 File Download API
+# 📥 File Download API (streaming decrypt)
 # ------------------------------------------------
 @app.get("/download/{file_id}")
 def download_file(file_id: int):
-    merged_path = None
     try:
         cursor.execute(
             "SELECT filename, chunks_count FROM file_metadata WHERE id=%s",
@@ -181,28 +183,31 @@ def download_file(file_id: int):
             raise HTTPException(status_code=404, detail="File not found")
 
         filename, chunks_count = file_meta
-        merged_path = os.path.join(UPLOAD_DIR, f"downloaded_{filename}")
 
-        with open(merged_path, "wb") as merged_file:
+        def iter_decrypted():
             for i in range(chunks_count):
+                # use same naming as upload: filename + "chunk" + index
                 chunk_path = os.path.join(UPLOAD_DIR, f"{filename}chunk{i}")
                 if not os.path.exists(chunk_path):
+                    # raise inside generator so StreamingResponse exposes error
                     raise HTTPException(status_code=404, detail=f"Chunk {i} missing")
                 with open(chunk_path, "rb") as cf:
-                    decrypted_chunk = cipher.decrypt(cf.read())
-                    merged_file.write(decrypted_chunk)
+                    enc = cf.read()
+                try:
+                    dec = cipher.decrypt(enc)
+                except Exception as ex:
+                    print(f"Decrypt error for chunk {i}:", ex)
+                    raise HTTPException(status_code=500, detail="Decryption failed")
+                yield dec
 
-        return FileResponse(path=merged_path, filename=filename, media_type='application/octet-stream')
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(iter_decrypted(), media_type="application/octet-stream", headers=headers)
 
     except HTTPException:
         raise
     except Exception as e:
         print("Error in download_file:", e)
         raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-        if merged_path and os.path.exists(merged_path):
-            os.remove(merged_path)
 
 # ------------------------------------------------
 # 🧩 Compatibility alias for older template links (optional)
@@ -212,7 +217,7 @@ def download_chunk(file_id: int):
     return download_file(file_id)
 
 # ================================================================
-# ⿧ RUN APP
+# 7️⃣ RUN APP
 # ================================================================
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
