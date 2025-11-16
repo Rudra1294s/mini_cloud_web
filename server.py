@@ -75,13 +75,22 @@ app.add_middleware(
 # ================================================================
 # 6️⃣ ROUTES
 # ================================================================
+# @app.get("/", response_class=HTMLResponse)
+# def home(request: Request):
+#     return templates.TemplateResponse("index.html", {"request": request})
+
+# @app.get("/health")
+# def health():
+#     return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    cursor.execute("SELECT id, filename FROM file_metadata ORDER BY uploaded_at DESC;")
+    rows = cursor.fetchall()
 
-@app.get("/health")
-def health():
-    return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
+    files = [{"id": r[0], "name": r[1]} for r in rows]
+
+    return templates.TemplateResponse("index.html", {"request": request, "files": files})
+
 
 # ------------------------------------------------
 # 📤 File Upload API (main)
