@@ -17,6 +17,7 @@ from cryptography.fernet import Fernet
 import uvicorn
 from models import Base
 from database import engine
+Base.metadata.create_all(bind=engine)
 
 # ================================================================
 # 2️⃣ CONFIGURATION
