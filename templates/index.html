@@ -16,7 +16,7 @@
     <ul>
         {% for file in files %}
         <li>
-            {{ file }} - <a href="/download_chunk/{{ file }}">Download</a>
+            {{ file }} - <a href="/download/{{ file.id }}">Download</a>
         </li>
         {% endfor %}
     </ul>
