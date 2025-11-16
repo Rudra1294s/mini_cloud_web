@@ -5,7 +5,7 @@ Powered by FastAPI + PostgreSQL + Fernet Encryption
 """
 
 # ================================================================
-# 1️⃣ IMPORTS
+# ⿡ IMPORTS
 # ================================================================
 import os
 import psycopg2
@@ -20,7 +20,7 @@ from database import engine
 Base.metadata.create_all(bind=engine)
 
 # ================================================================
-# 2️⃣ CONFIGURATION
+# ⿢ CONFIGURATION
 # ================================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -36,7 +36,7 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================================================================
-# 3️⃣ ENCRYPTION SETUP
+# ⿣ ENCRYPTION SETUP
 # ================================================================
 if not os.path.exists(KEY_FILE):
     with open(KEY_FILE, "wb") as keyfile:
@@ -48,7 +48,7 @@ with open(KEY_FILE, "rb") as keyfile:
 cipher = Fernet(key)
 
 # ================================================================
-# 4️⃣ DATABASE CONNECTION
+# ⿤ DATABASE CONNECTION
 # ================================================================
 try:
     conn = psycopg2.connect(DATABASE_URL)
@@ -59,7 +59,7 @@ except Exception as e:
     raise Exception(f"❌ Database connection failed: {e}")
 
 # ================================================================
-# 5️⃣ FASTAPI INITIALIZATION
+# ⿥ FASTAPI INITIALIZATION
 # ================================================================
 app = FastAPI(title="Rudra Cloud API", version="1.0")
 templates = Jinja2Templates(directory="templates")
@@ -73,24 +73,26 @@ app.add_middleware(
 )
 
 # ================================================================
-# 6️⃣ ROUTES
+# ⿦ ROUTES
 # ================================================================
-# @app.get("/", response_class=HTMLResponse)
-# def home(request: Request):
-#     return templates.TemplateResponse("index.html", {"request": request})
-
-# @app.get("/health")
-# def health():
-#     return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    cursor.execute("SELECT id, filename FROM file_metadata ORDER BY uploaded_at DESC;")
-    rows = cursor.fetchall()
-
-    files = [{"id": r[0], "name": r[1]} for r in rows]
-
+    """
+    Home page: fetch file list from DB and pass to template.
+    Files will be a list of dicts: {"id": ..., "name": ...}
+    """
+    try:
+        cursor.execute("SELECT id, filename FROM file_metadata ORDER BY uploaded_at DESC;")
+        rows = cursor.fetchall()
+        files = [{"id": r[0], "name": r[1]} for r in rows] if rows else []
+    except Exception as e:
+        print("Error in home():", e)
+        files = []
     return templates.TemplateResponse("index.html", {"request": request, "files": files})
 
+@app.get("/health")
+def health():
+    return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
 
 # ------------------------------------------------
 # 📤 File Upload API (main)
@@ -123,7 +125,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
                 if not chunk:
                     break
                 encrypted_chunk = cipher.encrypt(chunk)
-                chunk_path = os.path.join(UPLOAD_DIR, f"{file.filename}_chunk_{index}")
+                chunk_path = os.path.join(UPLOAD_DIR, f"{file.filename}chunk{index}")
                 with open(chunk_path, "wb") as cf:
                     cf.write(encrypted_chunk)
                 # Insert chunk metadata
@@ -152,7 +154,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ------------------------------------------------
-# 📤 Alias route for frontend `/upload_chunk/`
+# 📤 Alias route for frontend /upload_chunk/
 # ------------------------------------------------
 @app.post("/upload_chunk/")
 async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1"):
@@ -183,7 +185,7 @@ def download_file(file_id: int):
 
         with open(merged_path, "wb") as merged_file:
             for i in range(chunks_count):
-                chunk_path = os.path.join(UPLOAD_DIR, f"{filename}_chunk_{i}")
+                chunk_path = os.path.join(UPLOAD_DIR, f"{filename}chunk{i}")
                 if not os.path.exists(chunk_path):
                     raise HTTPException(status_code=404, detail=f"Chunk {i} missing")
                 with open(chunk_path, "rb") as cf:
@@ -192,6 +194,8 @@ def download_file(file_id: int):
 
         return FileResponse(path=merged_path, filename=filename, media_type='application/octet-stream')
 
+    except HTTPException:
+        raise
     except Exception as e:
         print("Error in download_file:", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -200,9 +204,16 @@ def download_file(file_id: int):
         if merged_path and os.path.exists(merged_path):
             os.remove(merged_path)
 
+# ------------------------------------------------
+# 🧩 Compatibility alias for older template links (optional)
+# ------------------------------------------------
+@app.get("/download_chunk/{file_id}")
+def download_chunk(file_id: int):
+    return download_file(file_id)
+
 # ================================================================
-# 7️⃣ RUN APP
+# ⿧ RUN APP
 # ================================================================
-if __name__ == "__main__":
+if _name_ == "_main_":
     port = int(os.getenv("PORT", 5000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)
