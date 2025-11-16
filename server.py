@@ -15,6 +15,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from cryptography.fernet import Fernet
 import uvicorn
+from models import Base
+from database import engine
 
 # ================================================================
 # 2️⃣ CONFIGURATION
