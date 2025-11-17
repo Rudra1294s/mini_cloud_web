@@ -108,15 +108,26 @@ def get_current_user(authorization: str = Header(None)):
     return payload  # contains user_id, username, exp
 
 # REGISTER endpoint
+MAX_BCRYPT_BYTES = 72
+
 @app.post("/register")
 def register_user(payload: UserRegister):
     try:
-        if len(payload.password) < 6:
-            raise HTTPException(status_code=400, detail="Password too short")
-        cursor.execute("SELECT id FROM users WHERE username=%s OR email=%s", (payload.username, payload.email))
+        raw_password = payload.password.encode("utf-8")
+
+        # truncate if too long
+        if len(raw_password) > MAX_BCRYPT_BYTES:
+            raw_password = raw_password[:MAX_BCRYPT_BYTES]
+
+        hashed = bcrypt.hash(raw_password)
+
+        cursor.execute(
+            "SELECT id FROM users WHERE username=%s OR email=%s",
+            (payload.username, payload.email)
+        )
         if cursor.fetchone():
             raise HTTPException(status_code=409, detail="Username or email already exists")
-        hashed = bcrypt.hash(payload.password)
+
         cursor.execute(
             "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING id",
             (payload.username, payload.email, hashed)
@@ -124,11 +135,13 @@ def register_user(payload: UserRegister):
         user_id = cursor.fetchone()[0]
         conn.commit()
         return {"status": "ok", "user_id": user_id}
+
     except HTTPException:
         raise
     except Exception as e:
         print("Register error:", e)
         raise HTTPException(status_code=500, detail="Server error")
+
 
 # LOGIN endpoint
 @app.post("/login")
