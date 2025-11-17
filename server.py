@@ -9,8 +9,13 @@ from cryptography.fernet import Fernet
 import uvicorn
 from models import Base
 from database import engine
-
 Base.metadata.create_all(bind=engine)
+
+# AUTH / JWT HELPERS & ENDPOINTS 
+from passlib.hash import bcrypt
+import jwt
+from pydantic import BaseModel, EmailStr
+from fastapi import HTTPException, Depends, Header
 
 
 # CONFIGURATION
@@ -58,7 +63,98 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# config
+SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_change_me")
+JWT_ALGO = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRE_SECONDS = int(os.getenv("JWT_EXPIRE_SECONDS", "3600"))
 
+# pydantic models
+class UserRegister(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+# helper: create JWT
+def create_jwt(payload: dict, expire_seconds: int = JWT_EXPIRE_SECONDS):
+    data = payload.copy()
+    from datetime import datetime, timedelta
+    exp = datetime.utcnow() + timedelta(seconds=expire_seconds)
+    data.update({"exp": exp})
+    token = jwt.encode(data, SECRET_KEY, algorithm=JWT_ALGO)
+    return token
+
+# helper: decode & validate JWT (returns payload)
+def decode_jwt(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGO])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+# dependency to get current user from Authorization header
+def get_current_user(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    # Accept formats: "Bearer <token>" or just "<token>"
+    parts = authorization.split()
+    token = parts[-1]
+    payload = decode_jwt(token)
+    return payload  # contains user_id, username, exp
+
+# REGISTER endpoint
+@app.post("/register")
+def register_user(payload: UserRegister):
+    try:
+        if len(payload.password) < 6:
+            raise HTTPException(status_code=400, detail="Password too short")
+        cursor.execute("SELECT id FROM users WHERE username=%s OR email=%s", (payload.username, payload.email))
+        if cursor.fetchone():
+            raise HTTPException(status_code=409, detail="Username or email already exists")
+        hashed = bcrypt.hash(payload.password)
+        cursor.execute(
+            "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING id",
+            (payload.username, payload.email, hashed)
+        )
+        user_id = cursor.fetchone()[0]
+        conn.commit()
+        return {"status": "ok", "user_id": user_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("Register error:", e)
+        raise HTTPException(status_code=500, detail="Server error")
+
+# LOGIN endpoint
+@app.post("/login")
+def login_user(payload: UserLogin):
+    try:
+        cursor.execute("SELECT id, password_hash FROM users WHERE username=%s", (payload.username,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        user_id, password_hash = row
+        if not bcrypt.verify(payload.password, password_hash):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        token = create_jwt({"user_id": user_id, "username": payload.username})
+        return {"access_token": token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("Login error:", e)
+        raise HTTPException(status_code=500, detail="Server error")
+
+# Example protected route (usage)
+@app.get("/me")
+def me(user=Depends(get_current_user)):
+    # user is JWT payload dict
+    return {"user": user}
+# end auth block 
 
 # ROUTE
 @app.get("/", response_class=HTMLResponse)
