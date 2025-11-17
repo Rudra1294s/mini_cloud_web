@@ -179,6 +179,21 @@ async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1")
         print("Error in upload_chunk:", e)
         raise
 
+@app.get("/download_by_name/{filename}")
+def download_by_name(filename: str):
+    try:
+        cursor.execute("SELECT id FROM file_metadata WHERE filename=%s", (filename,))
+        r = cursor.fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="File not found")
+        return download_file(r[0])  # reuse existing function
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("Error in download_by_name:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @app.get("/download/{file_id}")
 def download_file(file_id: int):
