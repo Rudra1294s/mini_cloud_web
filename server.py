@@ -26,7 +26,7 @@ Base.metadata.create_all(bind=engine)
 # ================================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise Exception("❌ DATABASE_URL environment variable is not set!")
+    raise Exception("DATABASE_URL environment variable is not set!")
 
 FRONTEND_URL = "https://rudravcloud.onrender.com"
 
@@ -96,9 +96,7 @@ def home(request: Request):
 def health():
     return {"status": "running", "database_url": DATABASE_URL, "frontend": FRONTEND_URL}
 
-# ------------------------------------------------
-# 📤 File Upload API (main)
-# ------------------------------------------------
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
     try:
@@ -156,9 +154,7 @@ async def upload_file(file: UploadFile = File(...), uploaded_by: str = "user1"):
         print("Error in upload_file:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-# ------------------------------------------------
-# 📤 Alias route for frontend /upload_chunk/
-# ------------------------------------------------
+
 @app.post("/upload_chunk/")
 async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1"):
     print("Alias route called for:", file.filename)
@@ -168,9 +164,7 @@ async def upload_chunk(file: UploadFile = File(...), uploaded_by: str = "user1")
         print("Error in upload_chunk:", e)
         raise
 
-# ------------------------------------------------
-# 📥 File Download API (streaming decrypt)
-# ------------------------------------------------
+
 @app.get("/download/{file_id}")
 def download_file(file_id: int):
     try:
@@ -209,16 +203,12 @@ def download_file(file_id: int):
         print("Error in download_file:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-# ------------------------------------------------
-# 🧩 Compatibility alias for older template links (optional)
-# ------------------------------------------------
+
 @app.get("/download_chunk/{file_id}")
 def download_chunk(file_id: int):
     return download_file(file_id)
 
-# ================================================================
-# 7️⃣ RUN APP
-# ================================================================
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     uvicorn.run(app, host="0.0.0.0", port=port)
