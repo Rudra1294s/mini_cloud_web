@@ -31,6 +31,11 @@ cffi==2.0.0
 colorama==0.4.6
 email-validator==2.3.0
 
+# Security for user login/register
+passlib[bcrypt]==1.7.4
+pyjwt==2.8.0
+
+
 # Utilities / CLI / Rich UI
 rich==14.1.0
 rich-toolkit==0.15.1
@@ -53,6 +58,7 @@ anyio==4.11.0
 #uvloop==0.21.0
 httptools==0.6.4
 h11==0.16.0
+
 
 
 
