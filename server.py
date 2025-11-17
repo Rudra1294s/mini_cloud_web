@@ -77,7 +77,7 @@ app.add_middleware(
 # ================================================================
 # 6️⃣ ROUTES
 # ================================================================
-@app.get("/", response_class=HTMLResponse)
+@app.get("/api/files", response_class=HTMLResponse)
 def home(request: Request):
     """
     Home page: fetch file list from DB and pass to template.
