@@ -1,12 +1,4 @@
-"""
-Mini Cloud Storage Backend
-Developed by Rudra Pratap Singh
-Powered by FastAPI + PostgreSQL + Fernet Encryption
-"""
-
-# ================================================================
-# 1️⃣ IMPORTS
-# ================================================================
+# IMPORTS
 import os
 import psycopg2
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
@@ -18,12 +10,10 @@ import uvicorn
 from models import Base
 from database import engine
 
-# Ensure models/tables created (SQLAlchemy)
 Base.metadata.create_all(bind=engine)
 
-# ================================================================
-# 2️⃣ CONFIGURATION
-# ================================================================
+
+# CONFIGURATION
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise Exception("DATABASE_URL environment variable is not set!")
@@ -37,9 +27,7 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ================================================================
-# 3️⃣ ENCRYPTION SETUP
-# ================================================================
+# ENCRYPTION SETUP
 if not os.path.exists(KEY_FILE):
     with open(KEY_FILE, "wb") as keyfile:
         keyfile.write(Fernet.generate_key())
@@ -49,9 +37,8 @@ with open(KEY_FILE, "rb") as keyfile:
 
 cipher = Fernet(key)
 
-# ================================================================
-# 4️⃣ DATABASE CONNECTION
-# ================================================================
+
+# DATABASE CONNECTION
 try:
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = True
@@ -60,9 +47,7 @@ try:
 except Exception as e:
     raise Exception(f"Database connection failed: {e}")
 
-# ================================================================
-# 5️⃣ FASTAPI INITIALIZATION
-# ================================================================
+
 app = FastAPI(title="Rudra Cloud API", version="1.0")
 templates = Jinja2Templates(directory="templates")
 
@@ -74,9 +59,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ================================================================
-# 6️⃣ ROUTES
-# ================================================================
+
+# ROUTE
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     """
