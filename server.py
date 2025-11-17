@@ -56,9 +56,9 @@ try:
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = True
     cursor = conn.cursor()
-    print("✅ Database connected successfully!")
+    print("Database connected successfully!")
 except Exception as e:
-    raise Exception(f"❌ Database connection failed: {e}")
+    raise Exception(f"Database connection failed: {e}")
 
 # ================================================================
 # 5️⃣ FASTAPI INITIALIZATION
@@ -77,7 +77,7 @@ app.add_middleware(
 # ================================================================
 # 6️⃣ ROUTES
 # ================================================================
-@app.get("/api/files", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     """
     Home page: fetch file list from DB and pass to template.
@@ -91,6 +91,21 @@ def home(request: Request):
         print("Error in home():", e)
         files = []
     return templates.TemplateResponse("index.html", {"request": request, "files": files})
+
+
+@app.get("/api/files", response_class=JSONResponse)
+def list_files_api():
+    try:
+        cursor.execute("SELECT id, filename FROM file_metadata ORDER BY uploaded_at DESC;")
+        rows = cursor.fetchall()
+
+        files = [{"id": r[0], "name": r[1]} for r in rows] if rows else []
+        return JSONResponse({"files": files})
+
+    except Exception as e:
+        print("Error in /api/files:", e)
+        return JSONResponse({"files": []}, status_code=500)
+
 
 @app.get("/health")
 def health():
