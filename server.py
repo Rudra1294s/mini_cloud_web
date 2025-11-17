@@ -12,7 +12,7 @@ from database import engine
 Base.metadata.create_all(bind=engine)
 
 # AUTH / JWT HELPERS & ENDPOINTS 
-from passlib.hash import bcrypt
+import bcrypt
 import jwt
 from pydantic import BaseModel, EmailStr
 from fastapi import HTTPException, Depends, Header
@@ -109,27 +109,23 @@ def get_current_user(authorization: str = Header(None)):
 
 MAX_BCRYPT_BYTES = 72
 
-def truncate_password_for_bcrypt(password: str, limit: int = MAX_BCRYPT_BYTES) -> str:
+def truncate_password_bytes(password: str, limit: int = MAX_BCRYPT_BYTES) -> bytes:
     """
-    Truncate password so that UTF-8 encoded length <= 72 bytes.
-    Avoids cutting multibyte characters.
+    Return UTF-8 encoded bytes of password truncated to at most `limit` bytes,
+    truncating at character boundaries (so no broken multibyte char).
     """
     if password is None:
-        return ""
-    encoded_len = 0
-    result = []
+        return b""
+    out_bytes = bytearray()
     for ch in password:
-        b = ch.encode("utf-8")
-        if encoded_len + len(b) > limit:
+        ch_b = ch.encode("utf-8")
+        if len(out_bytes) + len(ch_b) > limit:
             break
-        result.append(ch)
-        encoded_len += len(b)
-    return "".join(result)
+        out_bytes.extend(ch_b)
+    return bytes(out_bytes)
 
 
-# =========================================
-# REGISTER
-# =========================================
+
 @app.post("/register")
 def register_user(payload: UserRegister):
     try:
@@ -144,14 +140,20 @@ def register_user(payload: UserRegister):
         if cursor.fetchone():
             raise HTTPException(status_code=409, detail="Username or email already exists")
 
-        # Truncate password before hashing
-        safe_password = truncate_password_for_bcrypt(payload.password)
+        # Truncate to <= 72 bytes (bytes result)
+        safe_password_bytes = truncate_password_bytes(payload.password)
 
-        hashed = bcrypt.hash(safe_password)
+        # Hash using native bcrypt (hashpw expects bytes)
+        hashed = bcrypt.hashpw(safe_password_bytes, bcrypt.gensalt())  # returns bytes
+
+        # Store hashed as bytes or decode to utf-8-safe form (e.g., store as base64 or decode)
+        # Most people store it as bytes in BYTEA column or as its utf-8 repr:
+        # If your DB column is text, decode to utf-8:
+        hashed_str = hashed.decode("utf-8")
 
         cursor.execute(
             "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING id",
-            (payload.username, payload.email, hashed)
+            (payload.username, payload.email, hashed_str)
         )
         user_id = cursor.fetchone()[0]
         conn.commit()
@@ -165,24 +167,28 @@ def register_user(payload: UserRegister):
         raise HTTPException(status_code=500, detail="Server error")
 
 
-# =========================================
-# LOGIN
-# =========================================
+
 @app.post("/login")
 def login_user(payload: UserLogin):
     try:
         cursor.execute("SELECT id, password_hash FROM users WHERE username=%s", (payload.username,))
         row = cursor.fetchone()
-
         if not row:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        user_id, password_hash = row
+        user_id, password_hash_db = row
 
-        # Truncate incoming password exactly like register
-        safe_password = truncate_password_for_bcrypt(payload.password)
+        # DB value might be stored as str; convert to bytes
+        if isinstance(password_hash_db, str):
+            password_hash_bytes = password_hash_db.encode("utf-8")
+        else:
+            password_hash_bytes = password_hash_db
 
-        if not bcrypt.verify(safe_password, password_hash):
+        # Truncate incoming password to same rule and get bytes
+        safe_password_bytes = truncate_password_bytes(payload.password)
+
+        # Verify with bcrypt.checkpw OR bcrypt.checkpw-like using hash
+        if not bcrypt.checkpw(safe_password_bytes, password_hash_bytes):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         token = create_jwt({"user_id": user_id, "username": payload.username})
