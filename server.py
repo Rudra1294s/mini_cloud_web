@@ -107,20 +107,36 @@ def get_current_user(authorization: str = Header(None)):
     payload = decode_jwt(token)
     return payload  # contains user_id, username, exp
 
-# REGISTER endpoint
 MAX_BCRYPT_BYTES = 72
 
+def truncate_password_for_bcrypt(password: str, limit: int = MAX_BCRYPT_BYTES) -> str:
+    """
+    Truncate password so that UTF-8 encoded length <= 72 bytes.
+    Avoids cutting multibyte characters.
+    """
+    if password is None:
+        return ""
+    encoded_len = 0
+    result = []
+    for ch in password:
+        b = ch.encode("utf-8")
+        if encoded_len + len(b) > limit:
+            break
+        result.append(ch)
+        encoded_len += len(b)
+    return "".join(result)
+
+
+# =========================================
+# REGISTER
+# =========================================
 @app.post("/register")
 def register_user(payload: UserRegister):
     try:
-        raw_password = payload.password.encode("utf-8")
+        if len(payload.password) < 6:
+            raise HTTPException(status_code=400, detail="Password too short")
 
-        # truncate if too long
-        if len(raw_password) > MAX_BCRYPT_BYTES:
-            raw_password = raw_password[:MAX_BCRYPT_BYTES]
-
-        hashed = bcrypt.hash(raw_password)
-
+        # Username/email exists?
         cursor.execute(
             "SELECT id FROM users WHERE username=%s OR email=%s",
             (payload.username, payload.email)
@@ -128,12 +144,18 @@ def register_user(payload: UserRegister):
         if cursor.fetchone():
             raise HTTPException(status_code=409, detail="Username or email already exists")
 
+        # Truncate password before hashing
+        safe_password = truncate_password_for_bcrypt(payload.password)
+
+        hashed = bcrypt.hash(safe_password)
+
         cursor.execute(
             "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING id",
             (payload.username, payload.email, hashed)
         )
         user_id = cursor.fetchone()[0]
         conn.commit()
+
         return {"status": "ok", "user_id": user_id}
 
     except HTTPException:
@@ -143,24 +165,35 @@ def register_user(payload: UserRegister):
         raise HTTPException(status_code=500, detail="Server error")
 
 
-# LOGIN endpoint
+# =========================================
+# LOGIN
+# =========================================
 @app.post("/login")
 def login_user(payload: UserLogin):
     try:
         cursor.execute("SELECT id, password_hash FROM users WHERE username=%s", (payload.username,))
         row = cursor.fetchone()
+
         if not row:
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
         user_id, password_hash = row
-        if not bcrypt.verify(payload.password, password_hash):
+
+        # Truncate incoming password exactly like register
+        safe_password = truncate_password_for_bcrypt(payload.password)
+
+        if not bcrypt.verify(safe_password, password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
         token = create_jwt({"user_id": user_id, "username": payload.username})
         return {"access_token": token, "token_type": "bearer"}
+
     except HTTPException:
         raise
     except Exception as e:
         print("Login error:", e)
         raise HTTPException(status_code=500, detail="Server error")
+
 
 # Example protected route (usage)
 @app.get("/me")
